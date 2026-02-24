@@ -1,2 +1,2 @@
-# status-page-app
-This Repo Contains ONLY the app and docker files.
+# Final-Project
+This is the final project of Nadav, Ido and Daniel. 

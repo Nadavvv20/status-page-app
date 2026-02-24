@@ -1,0 +1,46 @@
+# Core Framework
+django>=5.0,<5.3
+djangorestframework>=3.15.0
+django-filter>=24.1
+
+# Background Tasks & Redis
+django-rq>=2.10.1
+rq-scheduler>=0.13.1
+rq>=1.15.0
+django-redis>=5.4.0
+redis>=5.0.0
+
+# Database & Server
+psycopg2-binary>=2.9.5
+gunicorn>=21.2.0
+
+# UI & Tables
+django-tables2>=2.7.0
+django-mptt>=0.14.0
+django-formtools>=2.5
+django-browser-reload>=1.12.0
+
+# Utilities & Security
+bleach>=6.1.0
+Markdown>=3.5
+PyYAML>=6.0.1
+netaddr>=0.10.0
+phonenumbers>=8.13.0
+typing-extensions>=4.9.0
+
+# Authentication & OTP
+django-otp>=1.5.0
+django-otp-yubikey>=1.0.1
+
+# Docs & Schema
+drf-yasg>=1.21.7
+swagger-spec-validator>=3.0.3
+mkdocs-material>=9.5.0
+mkdocs>=1.5.0
+
+# Images & QR
+Pillow>=10.2.0
+segno>=1.6.0
+
+django-storages==1.14.4
+boto3==1.34.0
