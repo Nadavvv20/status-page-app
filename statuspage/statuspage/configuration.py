@@ -6,7 +6,7 @@ import os
 # write access to the server via any other hostnames. The first FQDN in the list will be treated as the preferred name.
 #
 # Example: ALLOWED_HOSTS = ['status-page.example.com', 'status-page.internal.local']
-ALLOWED_HOSTS = ['*']
+ALLOWED_HOSTS = os.environ.get('ALLOWED_HOSTS', '*').split(',')
 DB_HOST = os.environ.get('DB_HOST', 'db')
 DB_USER = os.environ.get('DB_USER', 'statuspage')
 DB_PASS = os.environ.get('DB_PASS')
@@ -18,7 +18,7 @@ DATABASE = {
     'USER': DB_USER,               # PostgreSQL username
     'PASSWORD': DB_PASS,           # PostgreSQL password
     'HOST': DB_HOST,      # Database server
-    'PORT': '',               # Database port (leave blank for default)
+    'PORT': os.environ.get('DB_PORT', '5432'),               # Database port (leave blank for default)
     'CONN_MAX_AGE': 300,      # Max database connection age
 }
 
@@ -174,15 +174,16 @@ SHORT_DATETIME_FORMAT = 'Y-m-d H:i'
 EXTRA_INSTALLED_APPS = ['storages']
 
 if os.environ.get('USE_S3') == 'True':
-    AWS_ACCESS_KEY_ID = os.environ.get('AWS_ACCESS_KEY_ID')
-    AWS_SECRET_ACCESS_KEY = os.environ.get('AWS_SECRET_ACCESS_KEY')
     AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
     
-    # הגדרת S3 כספק האחסון
     DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
     STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
     
-    # בניית ה-URL של ה-Static
+
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
+    
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'

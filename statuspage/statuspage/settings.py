@@ -189,6 +189,7 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_totp',
     'otp_yubikey',
 ]
+INSTALLED_APPS.extend(getattr(configuration, 'EXTRA_INSTALLED_APPS', []))
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
@@ -419,3 +420,20 @@ for plugin_name in PLUGINS:
     RQ_QUEUES.update({
         f"{plugin_name}.{queue}": RQ_PARAMS for queue in plugin_config.queues
     })
+
+
+# --- S3 Storage Integration ---
+if getattr(configuration, 'USE_S3', False) or os.environ.get('USE_S3') == 'True':
+
+    DEFAULT_FILE_STORAGE = getattr(configuration, 'DEFAULT_FILE_STORAGE', 'storages.backends.s3boto3.S3Boto3Storage')
+    STATICFILES_STORAGE = getattr(configuration, 'STATICFILES_STORAGE', 'storages.backends.s3boto3.S3StaticStorage')
+    
+   
+    if hasattr(configuration, 'STATIC_URL'):
+        STATIC_URL = configuration.STATIC_URL
+    if hasattr(configuration, 'MEDIA_URL'):
+        MEDIA_URL = configuration.MEDIA_URL
+
+    
+    AWS_S3_VERIFY = True
+    AWS_QUERYSTRING_AUTH = False 

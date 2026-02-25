@@ -42,7 +42,6 @@ WORKDIR /app/statuspage
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-RUN sed -i "256s|STATIC_URL = .*|STATIC_URL = os.environ.get('STATIC_URL', f'/{BASE_PATH}static/')|" /app/statuspage/statuspage/settings.py
 # Run the app as the new user
 USER appuser
 
