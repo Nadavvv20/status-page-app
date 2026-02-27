@@ -425,15 +425,17 @@ for plugin_name in PLUGINS:
 # --- S3 Storage Integration ---
 if getattr(configuration, 'USE_S3', False) or os.environ.get('USE_S3') == 'True':
 
-    DEFAULT_FILE_STORAGE = getattr(configuration, 'DEFAULT_FILE_STORAGE', 'storages.backends.s3boto3.S3Boto3Storage')
-    STATICFILES_STORAGE = getattr(configuration, 'STATICFILES_STORAGE', 'storages.backends.s3boto3.S3StaticStorage')
-    
-   
-    if hasattr(configuration, 'STATIC_URL'):
-        STATIC_URL = configuration.STATIC_URL
-    if hasattr(configuration, 'MEDIA_URL'):
-        MEDIA_URL = configuration.MEDIA_URL
+    AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
+    AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
 
-    
+    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
+    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+
+    AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
+    STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
+    MEDIA_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/media/'
+
     AWS_S3_VERIFY = True
-    AWS_QUERYSTRING_AUTH = False 
+    AWS_QUERYSTRING_AUTH = False
+    AWS_S3_FILE_OVERWRITE = False
+    AWS_DEFAULT_ACL = None
