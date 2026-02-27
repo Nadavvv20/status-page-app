@@ -439,3 +439,4 @@ if getattr(configuration, 'USE_S3', False) or os.environ.get('USE_S3') == 'True'
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
+    STATIC_ROOT = None
