@@ -45,6 +45,9 @@ ENV PYTHONUNBUFFERED=1
 # Run the app as the new user
 USER appuser
 
+# Collect static files for WhiteNoise
+RUN SECRET_KEY="dummy_build_key" python manage.py collectstatic --noinput
+
 EXPOSE 8000
 
 # The command that runs the app

@@ -10,7 +10,6 @@ from statuspage.config import PARAMS
 VERSION = '2.0.17-dev'
 
 HOSTNAME = platform.node()
-
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 
 if sys.version_info < (3, 10):
@@ -193,6 +192,7 @@ INSTALLED_APPS.extend(getattr(configuration, 'EXTRA_INSTALLED_APPS', []))
 
 MIDDLEWARE = [
     'django.middleware.security.SecurityMiddleware',
+    'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
     'django.middleware.common.CommonMiddleware',
     'django.middleware.csrf.CsrfViewMiddleware',
@@ -250,16 +250,7 @@ SECURE_PROXY_SSL_HEADER = ('HTTP_X_FORWARDED_PROTO', 'https')
 USE_X_FORWARDED_HOST = True
 X_FRAME_OPTIONS = 'SAMEORIGIN'
 
-# Static files (CSS, JavaScript, Images)
-# https://docs.djangoproject.com/en/4.1/howto/static-files/
 
-STATIC_ROOT = BASE_DIR + '/static'
-STATIC_URL = f'/{BASE_PATH}static/'
-STATICFILES_DIRS = (
-    os.path.join(BASE_DIR, 'project-static', 'dist'),
-    os.path.join(BASE_DIR, 'project-static', 'img'),
-    ('docs', os.path.join(BASE_DIR, 'project-static', 'docs')),  # Prefix with /docs
-)
 
 # Media
 MEDIA_URL = '/{}media/'.format(BASE_PATH)
@@ -421,15 +412,37 @@ for plugin_name in PLUGINS:
         f"{plugin_name}.{queue}": RQ_PARAMS for queue in plugin_config.queues
     })
 
+# --- Static Files Configuration ---
+
+STATICFILES_DIRS = (
+    os.path.join(BASE_DIR, 'project-static', 'dist'),
+    os.path.join(BASE_DIR, 'project-static', 'img'),
+    ('docs', os.path.join(BASE_DIR, 'project-static', 'docs')),
+)
+
+STATIC_ROOT = os.path.join(BASE_DIR, 'static')
 
 # --- S3 Storage Integration ---
-if getattr(configuration, 'USE_S3', False) or os.environ.get('USE_S3') == 'True':
+USE_S3 = getattr(configuration, 'USE_S3', False)
 
+if USE_S3:
     AWS_STORAGE_BUCKET_NAME = os.environ.get('AWS_STORAGE_BUCKET_NAME')
     AWS_S3_REGION_NAME = os.environ.get('AWS_S3_REGION_NAME', 'us-east-1')
 
-    DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
-    STATICFILES_STORAGE = 'storages.backends.s3boto3.S3StaticStorage'
+    STORAGES = {
+        "default": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "media",
+            },
+        },
+        "staticfiles": {
+            "BACKEND": "storages.backends.s3boto3.S3Boto3Storage",
+            "OPTIONS": {
+                "location": "static",
+            },
+        }
+    }
 
     AWS_S3_CUSTOM_DOMAIN = f'{AWS_STORAGE_BUCKET_NAME}.s3.amazonaws.com'
     STATIC_URL = f'https://{AWS_S3_CUSTOM_DOMAIN}/static/'
@@ -439,4 +452,14 @@ if getattr(configuration, 'USE_S3', False) or os.environ.get('USE_S3') == 'True'
     AWS_QUERYSTRING_AUTH = False
     AWS_S3_FILE_OVERWRITE = False
     AWS_DEFAULT_ACL = None
-    STATIC_ROOT = None
+else:
+    STATIC_URL = '/static/'
+    
+    STORAGES = {
+        "default": {
+            "BACKEND": "django.core.files.storage.FileSystemStorage",
+        },
+        "staticfiles": {
+            "BACKEND": "whitenoise.storage.CompressedManifestStaticFilesStorage",
+        },
+    }
