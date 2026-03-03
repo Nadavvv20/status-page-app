@@ -62,8 +62,7 @@ jobs:
     - name: Build Docker image
       run: |
         echo "🔨 Building Docker image..."
-        docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
-                     -t ${{ env.ECR_REPOSITORY }}:latest .
+        docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} .
         echo "✅ Docker image built successfully!"
         docker images | grep nadav-statuspage
     
@@ -80,11 +79,8 @@ jobs:
       run: |
         echo "📦 Pushing to ECR..."
         docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
-        docker push ${{ env.ECR_REPOSITORY }}:latest
         echo "✅ Image pushed to ECR successfully!"
-        echo "Image tags:"
-        echo "  - ${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
-        echo "  - ${{ env.ECR_REPOSITORY }}:latest"
+        echo "Image tag: ${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
     
     - name: Trigger Infrastructure Update
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
