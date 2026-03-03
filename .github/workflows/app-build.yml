@@ -48,6 +48,12 @@ jobs:
       with:
         role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
         aws-region: ${{ env.AWS_REGION }}
+      continue-on-error: false
+
+    - name: Verify ECR Repository
+      run: |
+        echo "🔍 Checking ECR repository: nadav-statuspage"
+        aws ecr describe-repositories --repository-names nadav-statuspage --region ${{ env.AWS_REGION }} || echo "❌ ECR repo not found, will be created by deployment"
     
     - name: Login to Amazon ECR
       id: login-ecr
@@ -55,24 +61,30 @@ jobs:
     
     - name: Build Docker image
       run: |
+        echo "🔨 Building Docker image..."
         docker build -t ${{ env.ECR_REPOSITORY }}:${{ github.sha }} \
                      -t ${{ env.ECR_REPOSITORY }}:latest .
         echo "✅ Docker image built successfully!"
+        docker images | grep nadav-statuspage
     
     - name: Run Trivy security scan
       uses: aquasecurity/trivy-action@master
       with:
         image-ref: ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         format: 'table'
-        exit-code: '0'  # Don't fail the build, just report
+        exit-code: '0'
         severity: 'CRITICAL,HIGH'
     
     - name: Push to ECR (on main/develop only)
       if: github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop')
       run: |
+        echo "📦 Pushing to ECR..."
         docker push ${{ env.ECR_REPOSITORY }}:${{ github.sha }}
         docker push ${{ env.ECR_REPOSITORY }}:latest
-        echo "✅ Image pushed to ECR"
+        echo "✅ Image pushed to ECR successfully!"
+        echo "Image tags:"
+        echo "  - ${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
+        echo "  - ${{ env.ECR_REPOSITORY }}:latest"
     
     - name: Trigger Infrastructure Update
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
@@ -81,4 +93,11 @@ jobs:
         token: ${{ secrets.PAT_TOKEN }}
         repository: ${{ github.repository_owner }}/status-page-infra
         event-type: update-image
-        client-payload: '{"image_tag": "${{ github.sha }}", "repository": "${{ github.repository }}"}'
+        client-payload: '{"image_tag": "${{ github.sha }}", "image_uri": "${{ env.ECR_REPOSITORY }}:${{ github.sha }}", "timestamp": "${{ github.event.head_commit.timestamp }}", "commit_message": "${{ github.event.head_commit.message }}"}'
+    
+    - name: Confirm Infra Dispatch Sent
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      run: |
+        echo "✅ Repository dispatch sent to status-page-infra!"
+        echo "Event Type: update-image"
+        echo "Payload: image_tag=${{ github.sha }}, image_uri=${{ env.ECR_REPOSITORY }}:${{ github.sha }}"
