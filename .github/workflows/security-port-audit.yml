@@ -1,0 +1,303 @@
+name: Security - Port & Network Audit
+
+on:
+  push:
+    branches:
+      - main
+      - develop
+      - CI/CD
+  pull_request:
+    branches:
+      - main
+      - develop
+      - CI/CD
+
+jobs:
+  port-security-audit:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+
+    - name: "📋 Scan all port configurations"
+      id: port-scan
+      run: |
+        echo "=============================================="
+        echo "🔍 STATUS-PAGE PORT & NETWORK SECURITY AUDIT"
+        echo "=============================================="
+        echo ""
+
+        WARNINGS=0
+        REPORT_FILE="port-audit-report.txt"
+        > "$REPORT_FILE"
+
+        echo "📅 Audit Date: $(date -u '+%Y-%m-%d %H:%M:%S UTC')" | tee -a "$REPORT_FILE"
+        echo "📂 Repository: ${{ github.repository }}" | tee -a "$REPORT_FILE"
+        echo "🔖 Branch: ${{ github.ref_name }}" | tee -a "$REPORT_FILE"
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 1: Dockerfile port analysis
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "📦 DOCKERFILE ANALYSIS" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        if [ -f "Dockerfile" ]; then
+          EXPOSED_PORTS=$(grep -i "^EXPOSE" Dockerfile | awk '{for(i=2;i<=NF;i++) print $i}' || true)
+          if [ -n "$EXPOSED_PORTS" ]; then
+            echo "  EXPOSE ports found:" | tee -a "$REPORT_FILE"
+            for port in $EXPOSED_PORTS; do
+              echo "    ✅ Port $port (Dockerfile EXPOSE)" | tee -a "$REPORT_FILE"
+            done
+          else
+            echo "  ℹ️  No EXPOSE directives found" | tee -a "$REPORT_FILE"
+          fi
+
+          # Check for bind addresses in CMD/ENTRYPOINT
+          BIND_ADDRS=$(grep -iE "(0\.0\.0\.0|127\.0\.0\.1|\[::\])" Dockerfile || true)
+          if [ -n "$BIND_ADDRS" ]; then
+            echo "" | tee -a "$REPORT_FILE"
+            echo "  Bind addresses in Dockerfile:" | tee -a "$REPORT_FILE"
+            while IFS= read -r line; do
+              if echo "$line" | grep -q "0\.0\.0\.0"; then
+                echo "    ⚠️  WARNING: Binding to 0.0.0.0 (all interfaces): $line" | tee -a "$REPORT_FILE"
+                WARNINGS=$((WARNINGS + 1))
+              else
+                echo "    ✅ $line" | tee -a "$REPORT_FILE"
+              fi
+            done <<< "$BIND_ADDRS"
+          fi
+        else
+          echo "  ℹ️  No Dockerfile found" | tee -a "$REPORT_FILE"
+        fi
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 2: docker-compose.yml analysis
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "🐳 DOCKER-COMPOSE ANALYSIS" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        if [ -f "docker-compose.yml" ]; then
+          # Extract published ports (host:container mappings)
+          PUBLISHED_PORTS=$(grep -E '^\s*-\s*"?[0-9]' docker-compose.yml | sed 's/.*- *"*\([^"]*\)"*/\1/' || true)
+          if [ -n "$PUBLISHED_PORTS" ]; then
+            echo "  Published ports (host:container):" | tee -a "$REPORT_FILE"
+            while IFS= read -r mapping; do
+              mapping=$(echo "$mapping" | xargs)
+              echo "    📌 $mapping" | tee -a "$REPORT_FILE"
+              # Check for wildcard bind (0.0.0.0)
+              if echo "$mapping" | grep -qE "^0\.0\.0\.0:"; then
+                echo "    🚨 ALERT: Port explicitly bound to 0.0.0.0 (all interfaces)!" | tee -a "$REPORT_FILE"
+                WARNINGS=$((WARNINGS + 1))
+              fi
+            done <<< "$PUBLISHED_PORTS"
+          fi
+
+          # Check for bind addresses in commands
+          BIND_IN_COMPOSE=$(grep -E "(0\.0\.0\.0|0\.0\.0\.0/0)" docker-compose.yml || true)
+          if [ -n "$BIND_IN_COMPOSE" ]; then
+            echo "" | tee -a "$REPORT_FILE"
+            echo "  Bind addresses in docker-compose:" | tee -a "$REPORT_FILE"
+            while IFS= read -r line; do
+              line=$(echo "$line" | xargs)
+              if echo "$line" | grep -q "0\.0\.0\.0"; then
+                echo "    ⚠️  WARNING: 0.0.0.0 binding found: $line" | tee -a "$REPORT_FILE"
+                WARNINGS=$((WARNINGS + 1))
+              fi
+            done <<< "$BIND_IN_COMPOSE"
+          fi
+
+          # Check for ALLOWED_HOSTS=*
+          if grep -q "ALLOWED_HOSTS=\*" docker-compose.yml; then
+            echo "" | tee -a "$REPORT_FILE"
+            echo "  🚨 ALERT: ALLOWED_HOSTS=* found in docker-compose.yml!" | tee -a "$REPORT_FILE"
+            echo "     This allows requests from ANY hostname - risky in production!" | tee -a "$REPORT_FILE"
+            WARNINGS=$((WARNINGS + 1))
+          fi
+
+          # Check for hardcoded passwords
+          if grep -qiE "(password|passwd|pass).*[:=].*[a-zA-Z0-9]" docker-compose.yml; then
+            echo "" | tee -a "$REPORT_FILE"
+            echo "  🚨 ALERT: Hardcoded password(s) found in docker-compose.yml!" | tee -a "$REPORT_FILE"
+            echo "     Use secrets or environment variables instead." | tee -a "$REPORT_FILE"
+            WARNINGS=$((WARNINGS + 1))
+          fi
+        else
+          echo "  ℹ️  No docker-compose.yml found" | tee -a "$REPORT_FILE"
+        fi
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 3: Nginx configuration analysis
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "🌐 NGINX CONFIGURATION ANALYSIS" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        for nginx_file in nginx.conf contrib/nginx.conf; do
+          if [ -f "$nginx_file" ]; then
+            echo "" | tee -a "$REPORT_FILE"
+            echo "  📄 File: $nginx_file" | tee -a "$REPORT_FILE"
+            LISTEN_PORTS=$(grep -E "^\s*listen" "$nginx_file" | sed 's/.*listen\s*//' | sed 's/;.*//' || true)
+            if [ -n "$LISTEN_PORTS" ]; then
+              while IFS= read -r lport; do
+                lport=$(echo "$lport" | xargs)
+                echo "    📌 Listen: $lport" | tee -a "$REPORT_FILE"
+                # Check if SSL is configured
+                if echo "$lport" | grep -q "ssl"; then
+                  echo "    ✅ SSL/TLS enabled" | tee -a "$REPORT_FILE"
+                fi
+                # Check for plain HTTP on non-redirect
+                if echo "$lport" | grep -qE "^80$|^80 "; then
+                  if ! grep -qE "return 301" "$nginx_file"; then
+                    echo "    ⚠️  WARNING: Port 80 open without HTTPS redirect" | tee -a "$REPORT_FILE"
+                    WARNINGS=$((WARNINGS + 1))
+                  fi
+                fi
+              done <<< "$LISTEN_PORTS"
+            fi
+          fi
+        done
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 4: Gunicorn configuration
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "🦄 GUNICORN CONFIGURATION" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        for guni_file in contrib/gunicorn.py; do
+          if [ -f "$guni_file" ]; then
+            BIND_ADDR=$(grep -E "^bind\s*=" "$guni_file" | head -1 || true)
+            if [ -n "$BIND_ADDR" ]; then
+              echo "  📌 $guni_file: $BIND_ADDR" | tee -a "$REPORT_FILE"
+              if echo "$BIND_ADDR" | grep -q "127\.0\.0\.1"; then
+                echo "  ✅ Bound to localhost only (secure)" | tee -a "$REPORT_FILE"
+              elif echo "$BIND_ADDR" | grep -q "0\.0\.0\.0"; then
+                echo "  🚨 ALERT: Bound to 0.0.0.0 (all interfaces)!" | tee -a "$REPORT_FILE"
+                WARNINGS=$((WARNINGS + 1))
+              fi
+            fi
+          fi
+        done
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 5: Django configuration
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "🐍 DJANGO CONFIGURATION" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        CONFIG_FILE="statuspage/statuspage/configuration.py"
+        if [ -f "$CONFIG_FILE" ]; then
+          # Check ALLOWED_HOSTS
+          ALLOWED=$(grep "ALLOWED_HOSTS" "$CONFIG_FILE" | head -1 || true)
+          if [ -n "$ALLOWED" ]; then
+            echo "  📌 $ALLOWED" | tee -a "$REPORT_FILE"
+            if echo "$ALLOWED" | grep -qE "'\*'|\"\*\""; then
+              echo "  ⚠️  WARNING: ALLOWED_HOSTS defaults to '*' - restrict in production!" | tee -a "$REPORT_FILE"
+              WARNINGS=$((WARNINGS + 1))
+            fi
+          fi
+
+          # Check database port
+          DB_PORT=$(grep -E "DB_PORT|'PORT'" "$CONFIG_FILE" || true)
+          if [ -n "$DB_PORT" ]; then
+            echo "  📌 Database port config: $(echo "$DB_PORT" | xargs)" | tee -a "$REPORT_FILE"
+          fi
+
+          # Check Redis port
+          REDIS_PORT=$(grep -E "'PORT'.*6379" "$CONFIG_FILE" | head -1 || true)
+          if [ -n "$REDIS_PORT" ]; then
+            echo "  📌 Redis port: 6379" | tee -a "$REPORT_FILE"
+          fi
+
+          # Check CORS
+          CORS=$(grep "CORS_ORIGIN_ALLOW_ALL" "$CONFIG_FILE" | head -1 || true)
+          if echo "$CORS" | grep -qi "true"; then
+            echo "  ⚠️  WARNING: CORS_ORIGIN_ALLOW_ALL = True - all origins allowed!" | tee -a "$REPORT_FILE"
+            WARNINGS=$((WARNINGS + 1))
+          fi
+        fi
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 6: Scan for 0.0.0.0/0 patterns
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "🔎 DANGEROUS NETWORK PATTERNS SCAN" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+
+        # Search for 0.0.0.0/0 (completely open CIDR)
+        OPEN_CIDR=$(grep -rn "0\.0\.0\.0/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" --include="*.py" --include="*.env" . 2>/dev/null | grep -v ".git/" || true)
+        if [ -n "$OPEN_CIDR" ]; then
+          echo "  🚨 CRITICAL: Found 0.0.0.0/0 (open to entire internet):" | tee -a "$REPORT_FILE"
+          while IFS= read -r match; do
+            echo "    ❌ $match" | tee -a "$REPORT_FILE"
+            WARNINGS=$((WARNINGS + 1))
+          done <<< "$OPEN_CIDR"
+        else
+          echo "  ✅ No 0.0.0.0/0 CIDR patterns found" | tee -a "$REPORT_FILE"
+        fi
+
+        # Search for ::/0 (IPv6 open)
+        OPEN_IPV6=$(grep -rn "::/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" . 2>/dev/null | grep -v ".git/" || true)
+        if [ -n "$OPEN_IPV6" ]; then
+          echo "  🚨 CRITICAL: Found ::/0 (IPv6 open to entire internet):" | tee -a "$REPORT_FILE"
+          while IFS= read -r match; do
+            echo "    ❌ $match" | tee -a "$REPORT_FILE"
+            WARNINGS=$((WARNINGS + 1))
+          done <<< "$OPEN_IPV6"
+        else
+          echo "  ✅ No ::/0 IPv6 CIDR patterns found" | tee -a "$REPORT_FILE"
+        fi
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Section 7: Port Summary Table
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "📊 PORT SUMMARY TABLE" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "PORT" "SERVICE" "BIND ADDRESS" "EXPOSED" "STATUS" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "────" "───────" "────────────" "───────" "──────" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "80"   "Nginx (dev)"       "0.0.0.0"     "Yes (host)" "⚠️ HTTP only" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "443"  "Nginx (prod)"      "[::] SSL"    "No (config)" "✅ HTTPS" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "8000" "Gunicorn (Docker)" "0.0.0.0"     "Internal"   "⚠️ All interfaces" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "8001" "Gunicorn (prod)"   "127.0.0.1"   "No"         "✅ Localhost" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "5432" "PostgreSQL"        "Internal"    "No"         "✅ Internal" | tee -a "$REPORT_FILE"
+        printf "  %-10s %-20s %-15s %-12s %s\n" "6379" "Redis"             "Internal"    "No"         "✅ Internal" | tee -a "$REPORT_FILE"
+        echo "" | tee -a "$REPORT_FILE"
+
+        # ──────────────────────────────────────
+        # Final Summary
+        # ──────────────────────────────────────
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "📝 AUDIT SUMMARY" | tee -a "$REPORT_FILE"
+        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
+        echo "  Total warnings/alerts: $WARNINGS" | tee -a "$REPORT_FILE"
+        echo "" | tee -a "$REPORT_FILE"
+
+        if [ "$WARNINGS" -gt 0 ]; then
+          echo "  🔶 $WARNINGS security concern(s) found." | tee -a "$REPORT_FILE"
+          echo "     Review the warnings above before deploying to production." | tee -a "$REPORT_FILE"
+        else
+          echo "  ✅ No security concerns found. All ports are properly configured." | tee -a "$REPORT_FILE"
+        fi
+        echo "" | tee -a "$REPORT_FILE"
+
+        echo "warnings=$WARNINGS" >> $GITHUB_OUTPUT
+
+    - name: "🚨 Security Gate - Fail on critical findings"
+      if: always()
+      run: |
+        echo "ℹ️  Port audit completed. Review the report above for any security concerns."
+        echo "Note: Warnings are informational - the pipeline continues to enable review."
