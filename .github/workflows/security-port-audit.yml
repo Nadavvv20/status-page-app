@@ -1,6 +1,7 @@
 name: Security - Port & Network Audit
 
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -203,8 +204,8 @@ jobs:
         echo "🔎 DANGEROUS NETWORK PATTERNS SCAN" | tee -a "$REPORT_FILE"
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
 
-        # Search for 0.0.0.0/0 (completely open CIDR)
-        OPEN_CIDR=$(grep -rn "0\.0\.0\.0/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" --include="*.py" --include="*.env" . 2>/dev/null | grep -v ".git/" || true)
+        # Search for 0.0.0.0/0 (completely open CIDR) - exclude workflow files to avoid false positives
+        OPEN_CIDR=$(grep -rn "0\.0\.0\.0/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" --include="*.py" --include="*.env" . 2>/dev/null | grep -v ".git/" | grep -v ".github/workflows/" || true)
         if [ -n "$OPEN_CIDR" ]; then
           echo "  🚨 CRITICAL: Found 0.0.0.0/0 (open to entire internet):" | tee -a "$REPORT_FILE"
           while IFS= read -r match; do
@@ -215,8 +216,8 @@ jobs:
           echo "  ✅ No 0.0.0.0/0 CIDR patterns found" | tee -a "$REPORT_FILE"
         fi
 
-        # Search for ::/0 (IPv6 open)
-        OPEN_IPV6=$(grep -rn "::/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" . 2>/dev/null | grep -v ".git/" || true)
+        # Search for ::/0 (IPv6 open) - exclude workflow files to avoid false positives
+        OPEN_IPV6=$(grep -rn "::/0" --include="*.yml" --include="*.yaml" --include="*.tf" --include="*.json" --include="*.conf" . 2>/dev/null | grep -v ".git/" | grep -v ".github/workflows/" || true)
         if [ -n "$OPEN_IPV6" ]; then
           echo "  🚨 CRITICAL: Found ::/0 (IPv6 open to entire internet):" | tee -a "$REPORT_FILE"
           while IFS= read -r match; do
