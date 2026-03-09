@@ -134,40 +134,7 @@ jobs:
         echo "" | tee -a "$REPORT_FILE"
 
         # ──────────────────────────────────────
-        # Section 3: Nginx configuration analysis
-        # ──────────────────────────────────────
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
-        echo "🌐 NGINX CONFIGURATION ANALYSIS" | tee -a "$REPORT_FILE"
-        echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
-
-        for nginx_file in nginx.conf contrib/nginx.conf; do
-          if [ -f "$nginx_file" ]; then
-            echo "" | tee -a "$REPORT_FILE"
-            echo "  📄 File: $nginx_file" | tee -a "$REPORT_FILE"
-            LISTEN_PORTS=$(grep -E "^\s*listen" "$nginx_file" | sed 's/.*listen\s*//' | sed 's/;.*//' || true)
-            if [ -n "$LISTEN_PORTS" ]; then
-              while IFS= read -r lport; do
-                lport=$(echo "$lport" | xargs)
-                echo "    📌 Listen: $lport" | tee -a "$REPORT_FILE"
-                # Check if SSL is configured
-                if echo "$lport" | grep -q "ssl"; then
-                  echo "    ✅ SSL/TLS enabled" | tee -a "$REPORT_FILE"
-                fi
-                # Check for plain HTTP on non-redirect
-                if echo "$lport" | grep -qE "^80$|^80 "; then
-                  if ! grep -qE "return 301" "$nginx_file"; then
-                    echo "    ⚠️  WARNING: Port 80 open without HTTPS redirect" | tee -a "$REPORT_FILE"
-                    WARNINGS=$((WARNINGS + 1))
-                  fi
-                fi
-              done <<< "$LISTEN_PORTS"
-            fi
-          fi
-        done
-        echo "" | tee -a "$REPORT_FILE"
-
-        # ──────────────────────────────────────
-        # Section 4: Gunicorn configuration
+        # Section 3: Gunicorn configuration
         # ──────────────────────────────────────
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
         echo "🦄 GUNICORN CONFIGURATION" | tee -a "$REPORT_FILE"
@@ -269,8 +236,6 @@ jobs:
         echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━" | tee -a "$REPORT_FILE"
         printf "  %-10s %-20s %-15s %-12s %s\n" "PORT" "SERVICE" "BIND ADDRESS" "EXPOSED" "STATUS" | tee -a "$REPORT_FILE"
         printf "  %-10s %-20s %-15s %-12s %s\n" "────" "───────" "────────────" "───────" "──────" | tee -a "$REPORT_FILE"
-        printf "  %-10s %-20s %-15s %-12s %s\n" "80"   "Nginx (dev)"       "0.0.0.0"     "Yes (host)" "⚠️ HTTP only" | tee -a "$REPORT_FILE"
-        printf "  %-10s %-20s %-15s %-12s %s\n" "443"  "Nginx (prod)"      "[::] SSL"    "No (config)" "✅ HTTPS" | tee -a "$REPORT_FILE"
         printf "  %-10s %-20s %-15s %-12s %s\n" "8000" "Gunicorn (Docker)" "0.0.0.0"     "Internal"   "⚠️ All interfaces" | tee -a "$REPORT_FILE"
         printf "  %-10s %-20s %-15s %-12s %s\n" "8001" "Gunicorn (prod)"   "127.0.0.1"   "No"         "✅ Localhost" | tee -a "$REPORT_FILE"
         printf "  %-10s %-20s %-15s %-12s %s\n" "5432" "PostgreSQL"        "Internal"    "No"         "✅ Internal" | tee -a "$REPORT_FILE"
