@@ -84,12 +84,21 @@ jobs:
     
     - name: Trigger Infrastructure Update
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        COMMIT_MSG: ${{ github.event.head_commit.message }}
+      run: |
+        # Sanitize commit message for JSON (remove newlines and escape quotes)
+        SAFE_MSG=$(echo "$COMMIT_MSG" | tr '\n' ' ' | sed 's/"/\\"/g' | cut -c1-200)
+        echo "SAFE_COMMIT_MSG=$SAFE_MSG" >> $GITHUB_ENV
+
+    - name: Dispatch to Infrastructure Repo
+      if: github.event_name == 'push' && github.ref == 'refs/heads/main'
       uses: peter-evans/repository-dispatch@v3
       with:
         token: ${{ secrets.PAT_TOKEN }}
         repository: ${{ github.repository_owner }}/status-page-infra
         event-type: update-image
-        client-payload: '{"image_tag": "${{ github.sha }}", "image_uri": "${{ env.ECR_REPOSITORY }}:${{ github.sha }}", "timestamp": "${{ github.event.head_commit.timestamp }}", "commit_message": "${{ github.event.head_commit.message }}"}'
+        client-payload: '{"image_tag": "${{ github.sha }}", "image_uri": "${{ env.ECR_REPOSITORY }}:${{ github.sha }}", "timestamp": "${{ github.event.head_commit.timestamp }}", "commit_message": "${{ env.SAFE_COMMIT_MSG }}"}'
     
     - name: Confirm Infra Dispatch Sent
       if: github.event_name == 'push' && github.ref == 'refs/heads/main'
