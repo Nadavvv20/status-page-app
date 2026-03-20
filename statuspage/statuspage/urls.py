@@ -40,6 +40,8 @@ _patterns = [
     path('dashboard/login/', LoginView.as_view(), name='login'),
     path('dashboard/logout/', LogoutView.as_view(), name='logout'),
 
+    path('accounts/', include('allauth.urls')),
+
     # Apps
     path('dashboard/components/', include('components.urls')),
     path('dashboard/extras/', include('extras.urls')),

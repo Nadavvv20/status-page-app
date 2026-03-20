@@ -45,3 +45,4 @@ segno>=1.6.0
 django-storages==1.14.4
 boto3==1.34.0
 whitenoise
+django-allauth>=0.58.0
