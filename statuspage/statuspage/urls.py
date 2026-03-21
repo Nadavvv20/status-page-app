@@ -31,7 +31,7 @@ _patterns = [
     path('', HomeView.as_view(), name='home'),
 
     path('subscribers/subscribe', SubscriberSubscribeView.as_view(), name='subscriber_subscribe'),
-    path('subscribers/reqeust-management-key', SubscriberRequestManagementKeyView.as_view(), name='subscriber_management_key'),
+    path('subscribers/request-management-key', SubscriberRequestManagementKeyView.as_view(), name='subscriber_management_key'),
     path('subscribers/<str:management_key>/verify', SubscriberVerifyView.as_view(), name='subscriber_verify'),
     path('subscribers/<str:management_key>/manage', SubscriberManageView.as_view(), name='subscriber_manage'),
     path('subscribers/<str:management_key>/unsubscribe', SubscriberUnsubscribeView.as_view(), name='subscriber_unsubscribe'),
@@ -40,7 +40,7 @@ _patterns = [
     path('dashboard/login/', LoginView.as_view(), name='login'),
     path('dashboard/logout/', LogoutView.as_view(), name='logout'),
 
-    path('accounts/', include('allauth.urls')),
+    # path('accounts/', include('allauth.urls')),
 
     # Apps
     path('dashboard/components/', include('components.urls')),
@@ -80,6 +80,9 @@ _patterns = [
 ]
 
 # Prepend BASE_PATH
-urlpatterns = [
-    path('{}'.format(settings.BASE_PATH), include(_patterns))
-]
+if settings.BASE_PATH:
+    urlpatterns = [
+        path(f'{settings.BASE_PATH}', include(_patterns))
+    ]
+else:
+    urlpatterns = _patterns

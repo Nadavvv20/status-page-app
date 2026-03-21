@@ -169,7 +169,7 @@ INSTALLED_APPS = [
     'django.contrib.sessions',
     'django.contrib.messages',
     'django.contrib.staticfiles',
-    'django.contrib.sites',
+    # 'django.contrib.sites',
     'rest_framework',
     'django_browser_reload',
     'django_tables2',
@@ -188,10 +188,10 @@ INSTALLED_APPS = [
     'django_otp.plugins.otp_static',
     'django_otp.plugins.otp_totp',
     'otp_yubikey',
-    'allauth',
-    'allauth.account',
-    'allauth.socialaccount',
-    'allauth.socialaccount.providers.github',
+    # 'allauth',
+    # 'allauth.account',
+    # 'allauth.socialaccount',
+    # 'allauth.socialaccount.providers.github',
 ]
 INSTALLED_APPS.extend(getattr(configuration, 'EXTRA_INSTALLED_APPS', []))
 
@@ -209,7 +209,7 @@ MIDDLEWARE = [
     'statuspage.middleware.APIVersionMiddleware',
     'statuspage.middleware.ObjectChangeMiddleware',
     'statuspage.middleware.DynamicConfigMiddleware',
-    'allauth.account.middleware.AccountMiddleware',
+    # 'allauth.account.middleware.AccountMiddleware',
 ]
 
 ROOT_URLCONF = 'statuspage.urls'
@@ -253,7 +253,7 @@ SOCIALACCOUNT_PROVIDERS = {
     }
 }
 
-SOCIALACCOUNT_ADAPTER = 'statuspage.adapters.MyGitHubAdapter'
+# SOCIALACCOUNT_ADAPTER = 'statuspage.adapters.MyGitHubAdapter'
 
 OTP_ADMIN_HIDE_SENSITIVE_DATA = True
 
