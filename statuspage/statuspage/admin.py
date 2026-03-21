@@ -9,4 +9,4 @@ admin_site.site_title = 'Status-Page'
 admin_site.site_url = '/{}'.format(settings.BASE_PATH)
 admin_site.index_template = 'admin/index.html'
 admin_site.login_form = OTPAdminAuthenticationForm
-admin_site.login_template = 'otp/admin111/login.html'
+admin_site.login_template = 'otp/admin/login.html'
